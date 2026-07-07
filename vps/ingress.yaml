@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: php-helloworld-ingress
+spec:
+  ingressClassName: traefik  # встроенный в k3s Ingress-контроллер
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: php-helloworld-svc
+                port:
+                  number: 80

@@ -53,4 +53,5 @@ composer.phar
 env
 env.sh
 .last_image
+kubeconfig
 

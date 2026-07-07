@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-helloworld
+  labels:
+    app: php-helloworld
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: php-helloworld
+  template:
+    metadata:
+      labels:
+        app: php-helloworld
+    spec:
+      containers:
+        - name: php-helloworld
+          # Образ импортирован напрямую в containerd k3s скриптом
+          # build-and-load.sh, без внешнего registry.
+          # ВАЖНО: сверьте точное имя тега после импорта командой на VPS:
+          #   sudo k3s ctr images list | grep php-helloworld
+          # и при необходимости поправьте строку ниже (иногда containerd
+          # нормализует его в docker.io/library/php-helloworld:latest).
+          image: php-helloworld:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+          env:
+            # Тот же Downward API, что и в остальных вариантах (../k8s, ../yc) -
+            # NODE_NAME здесь покажет имя вашей единственной VPS-ноды.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
