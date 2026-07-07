@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-helloworld
+  labels:
+    app: php-helloworld
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: php-helloworld
+  template:
+    metadata:
+      labels:
+        app: php-helloworld
+    spec:
+      containers:
+        - name: php-helloworld
+          # Подставляется скриптом deploy.sh из yc/env.sh (см. YCR_IMAGE)
+          image: __IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          env:
+            # Тот же Downward API, что и в локальном варианте (k8s/deployment.yaml) —
+            # в managed k8s NODE_NAME покажет реальное имя ВМ ноды в Yandex Cloud.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

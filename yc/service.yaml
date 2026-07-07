@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-helloworld-svc
+spec:
+  # В managed k8s Yandex Cloud тип LoadBalancer создаёт настоящий сетевой
+  # балансировщик с публичным IP (в отличие от NodePort в локальном minikube).
+  type: LoadBalancer
+  selector:
+    app: php-helloworld
+  ports:
+    - port: 80
+      targetPort: 80

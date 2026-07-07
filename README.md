@@ -1,213 +1,51 @@
-# PHP Hello World на локальном Kubernetes (minikube + docker)
+# PHP Hello World на Kubernetes
 
-Инструкция по развёртыванию простого PHP-приложения в локальном кластере
-Kubernetes, поднятом через minikube (драйвер docker). Приложение выводит
-Hello World, а также параметры сервера: имя пода, IP пода, имя ноды,
-namespace, версию PHP и т.д. — удобно, чтобы наглядно видеть, на какой
-ноде/поде обрабатывается конкретный запрос.
+Простое PHP-приложение для Kubernetes: страница Hello World, которая
+дополнительно выводит параметры сервера — имя пода, IP пода, имя ноды,
+namespace, версию PHP и т.д. Удобно, чтобы наглядно видеть, на какой
+ноде/поде обрабатывается конкретный запрос (особенно при масштабировании
+через несколько реплик).
+
+Код приложения один и тот же ([app/index.php](app/index.php),
+[app/Dockerfile](app/Dockerfile)) — различаются только манифесты
+Kubernetes и способ доставки образа, в зависимости от того, где
+разворачиваете кластер.
 
 ## Структура проекта
 
 ```
 KubernetesYcAutoCreate/
 ├── app/
-│   ├── index.php      # PHP-страница с Hello World и данными о поде/ноде
-│   └── Dockerfile      # образ на базе php:8.3-apache
-├── k8s/
-│   ├── deployment.yaml # Deployment (Downward API)
-│   └── service.yaml    # Service типа NodePort (порт 30080)
-├── start.sh             # сборка образа + деплой в кластер одной командой
-├── stop.sh              # удаление ресурсов примера (опционально: образ, minikube)
-└── README.md
+│   ├── index.php        # PHP-страница с Hello World и данными о поде/ноде
+│   └── Dockerfile        # образ на базе php:8.3-apache
+├── k8s/                  # вариант 1: локальный кластер (minikube)
+│   ├── deployment.yaml
+│   ├── service.yaml       # Service типа NodePort
+│   └── README.md          # подробная инструкция
+├── yc/                   # вариант 2: Yandex Managed Service for Kubernetes
+│   ├── deployment.yaml
+│   ├── service.yaml       # Service типа LoadBalancer
+│   ├── env.sh / create-infra.sh / build-and-push.sh / deploy.sh / destroy.sh
+│   └── README.md          # подробная инструкция
+├── start.sh               # быстрый запуск локального варианта
+├── stop.sh                # остановка локального варианта
+└── README.md               # этот файл
 ```
 
-## Быстрый старт (скрипты)
+## Доступные варианты развёртывания
 
-Вместо ручных шагов ниже можно воспользоваться готовыми скриптами
-(запускать в Git Bash):
+| Вариант | Где выполняется | Доступ снаружи | Инструкция |
+|---|---|---|---|
+| **Локально** | minikube (docker-драйвер) на вашей машине | `Service: NodePort` + туннель `minikube service` | [k8s/README.md](k8s/README.md) |
+| **Облако** | Yandex Managed Service for Kubernetes (реальные ВМ-ноды) | `Service: LoadBalancer` — настоящий внешний IP | [yc/README.md](yc/README.md) |
+
+Быстрый старт локального варианта одной командой из корня проекта:
 
 ```bash
-./start.sh   # поднимет minikube (если не запущен), соберёт образ и задеплоит
-./stop.sh    # удалит Service и Deployment примера из кластера
+./start.sh   # поднимет minikube, соберёт образ, задеплоит
+./stop.sh    # уберёт за собой
 ```
 
-Флаги `stop.sh`:
-
-```bash
-./stop.sh --image      # + удалить собранный образ php-helloworld:latest
-./stop.sh --minikube   # + остановить сам minikube
-./stop.sh --all        # оба варианта сразу
-```
-
-Дальше в README — те же шаги вручную, для понимания, что происходит "под капотом".
-
-## Предварительные требования
-
-Проверено, что на машине уже установлены и работают:
-
-- Docker Desktop
-- minikube (`minikube status` -> Running)
-- kubectl
-
-Проверить состояние кластера:
-
-```bash
-minikube status
-kubectl get nodes
-```
-
-Если кластер не запущен:
-
-```bash
-minikube start --driver=docker
-```
-
-Для наглядности "на какой ноде работает под" можно поднять кластер с
-несколькими нодами (по умолчанию у minikube 1 нода-контрол-плейн, которая
-одновременно и воркер):
-
-```bash
-minikube start --driver=docker --nodes=3
-```
-
-Это создаст 3 виртуальные ноды (`minikube`, `minikube-m02`, `minikube-m03`),
-и под приложением будут раскиданы по разным нодам — Deployment с 3
-репликами хорошо это продемонстрирует.
-
-## Шаг 1. Собрать Docker-образ внутри minikube
-
-minikube использует свой собственный Docker-демон, отдельный от локального
-Docker Desktop. Чтобы кластер видел собранный образ без публикации в
-registry, нужно указать shell на docker-демон minikube:
-
-**PowerShell:**
-```powershell
-& minikube -p minikube docker-env | Invoke-Expression
-```
-
-**Bash/Git Bash:**
-```bash
-eval $(minikube -p minikube docker-env)
-```
-
-После этого все последующие команды `docker build` в этом терминале будут
-собирать образ прямо внутри minikube.
-
-Собрать образ:
-
-```bash
-cd app
-docker build -t php-helloworld:latest .
-cd ..
-```
-
-Проверить, что образ появился внутри minikube:
-
-```bash
-docker images | grep php-helloworld
-```
-
-> Важно: команду `docker-env` нужно выполнять в каждой новой сессии
-> терминала перед сборкой образа. Если открыли новый терминал — повторите
-> шаг 1.
-
-## Шаг 2. Применить манифесты Kubernetes
-
-```bash
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
-```
-
-Проверить, что поды поднялись и разъехались по нодам:
-
-```bash
-kubectl get pods -o wide
-```
-
-В колонке `NODE` будет видно, на какой ноде работает каждый под.
-
-## Шаг 3. Открыть приложение в браузере
-
-Самый простой способ — попросить minikube открыть сервис:
-
-```bash
-minikube service php-helloworld-svc
-```
-
-Эта команда сама откроет браузер по правильному адресу.
-
-> **Важно (Windows + драйвер docker):** на Windows с драйвером `docker`
-> minikube-нода — это отдельный Docker-контейнер, и `http://<minikube ip>:30080`
-> **не будет доступен напрямую с хоста** (curl вернёт "connection refused").
-> Команда `minikube service php-helloworld-svc` в этом случае откроет
-> локальный туннель вида `http://127.0.0.1:PORT` и должна оставаться
-> запущенной в терминале, пока вы пользуетесь приложением — именно
-> так это и было проверено при подготовке этой инструкции. Если нужен
-> только URL без открытия браузера:
-> ```bash
-> minikube service php-helloworld-svc --url
-> ```
-
-## Шаг 4. Убедиться, что под работает на разных нодах
-
-Обновите страницу в браузере несколько раз (или сделайте несколько
-запросов curl) — Service балансирует запросы между 3 репликами пода,
-которые могут находиться на разных нодах. В таблице на странице будет
-меняться `Имя пода` и `Нода`.
-
-```bash
-# сначала в отдельном терминале держите открытым:
-#   minikube service php-helloworld-svc --url
-# и подставьте выданный URL ниже
-for i in 1 2 3 4 5; do curl -s http://127.0.0.1:<PORT> | grep -A1 "POD_NAME\|NODE_NAME"; done
-```
-
-Также можно посмотреть распределение подов по нодам напрямую:
-
-```bash
-kubectl get pods -o=custom-columns=POD:.metadata.name,NODE:.spec.nodeName
-```
-
-## Полезные команды для отладки
-
-```bash
-# Логи конкретного пода
-kubectl logs <pod-name>
-
-# Логи всех подов деплоймента
-kubectl logs -l app=php-helloworld --all-containers
-
-# Зайти внутрь пода
-kubectl exec -it <pod-name> -- sh
-
-# Информация о поде (события, статус, нода)
-kubectl describe pod <pod-name>
-
-# Масштабировать количество реплик
-kubectl scale deployment php-helloworld --replicas=5
-
-# Дашборд Kubernetes (визуально)
-minikube dashboard
-```
-
-## Как это устроено (кратко)
-
-- **Downward API** (`deployment.yaml`, секция `env` → `valueFrom.fieldRef`)
-  прокидывает в контейнер переменные окружения `POD_NAME`, `POD_IP`,
-  `NODE_NAME`, `POD_NAMESPACE` из метаданных самого пода — без него PHP
-  не знал бы, на какой ноде он выполняется.
-- **index.php** читает эти переменные через `getenv()` и выводит вместе
-  с другими стандартными параметрами PHP/сервера.
-- **Service (NodePort)** открывает доступ к приложению снаружи кластера
-  на порту `30080` и балансирует трафик между всеми репликами пода.
-- **imagePullPolicy: Never** говорит Kubernetes не пытаться скачать образ
-  из внешнего registry, а взять уже собранный локально (внутри minikube).
-
-## Удаление
-
-```bash
-kubectl delete -f k8s/service.yaml
-kubectl delete -f k8s/deployment.yaml
-# при необходимости полностью остановить кластер:
-minikube stop
-```
+Подробности, шаги вручную, отладка и объяснение механики (Downward API
+и т.д.) — в README каждого варианта по ссылкам выше. Для облачного
+варианта отдельно расписаны нюансы стоимости и полная очистка ресурсов.

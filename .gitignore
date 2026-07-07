@@ -49,3 +49,8 @@ composer.phar
 
 # Storage
 /storage/*.pid
+
+env
+env.sh
+.last_image
+
