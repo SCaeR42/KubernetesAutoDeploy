@@ -21,6 +21,8 @@ KubernetesYcAutoCreate/
 ├── k8s/                  # вариант 1: локальный кластер (minikube)
 │   ├── deployment.yaml
 │   ├── service.yaml       # Service типа NodePort
+│   ├── rbac.yaml           # RBAC: роли read/write (ServiceAccount+Role+RoleBinding)
+│   ├── generate-kubeconfigs.sh  # генерирует kubeconfig-{read,write,admin}.yaml
 │   └── README.md          # подробная инструкция
 ├── yc/                   # вариант 2: Yandex Managed Service for Kubernetes
 │   ├── deployment.yaml

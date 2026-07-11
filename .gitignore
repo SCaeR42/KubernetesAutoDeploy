@@ -54,4 +54,5 @@ env
 env.sh
 .last_image
 kubeconfig
+kubeconfig-*.yaml
 

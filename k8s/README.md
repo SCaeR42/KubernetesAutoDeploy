@@ -193,11 +193,62 @@ minikube dashboard
 - **imagePullPolicy: Never** говорит Kubernetes не пытаться скачать образ
   из внешнего registry, а взять уже собранный локально (внутри minikube).
 
+## RBAC: три kubeconfig с разными правами (read / write / admin)
+
+Помимо самого приложения, в этой папке настроен пример разграничения
+доступа к кластеру через RBAC — три роли на namespace `default`:
+
+| Роль | ServiceAccount | Права |
+|---|---|---|
+| `read` | `php-helloworld-read` | только `get`/`list`/`watch` pods, pods/log, services, events, deployments, replicasets |
+| `write` | `php-helloworld-write` | то же + `create`/`update`/`patch`/`delete` и `deployments/scale`, но без доступа к RBAC-объектам, нодам и другим namespace |
+| `admin` | — (обычный admin-конфиг minikube) | полный доступ ко всему кластеру |
+
+Манифест: [rbac.yaml](rbac.yaml) (`ServiceAccount` + `Role` + `RoleBinding`
+на каждую из read/write ролей). Сгенерировать сами kubeconfig-файлы:
+
+```bash
+./generate-kubeconfigs.sh
+```
+
+Скрипт применяет `rbac.yaml` и создаёт токены (`kubectl create token`,
+живут 1 год — см. `TOKEN_DURATION` в скрипте) для каждой роли, собирая
+из них три самостоятельных файла:
+
+- `kubeconfig-read.yaml`
+- `kubeconfig-write.yaml`
+- `kubeconfig-admin.yaml` (копия текущего admin-конфига minikube)
+
+Все три — **в `.gitignore`** (содержат настоящие токены доступа) и лежат
+только у вас локально.
+
+Проверка, что права разграничены как надо:
+
+```bash
+# read: просмотр работает, изменение - нет
+kubectl --kubeconfig kubeconfig-read.yaml get pods
+kubectl --kubeconfig kubeconfig-read.yaml delete pod <pod-name>   # -> Forbidden
+
+# write: управление приложением работает, но не RBAC/ноды/другие namespace
+kubectl --kubeconfig kubeconfig-write.yaml scale deployment php-helloworld --replicas=3
+kubectl --kubeconfig kubeconfig-write.yaml get nodes              # -> Forbidden
+
+# admin: полный доступ
+kubectl --kubeconfig kubeconfig-admin.yaml get nodes
+```
+
+Токены живут ограниченное время (`TOKEN_DURATION` в
+[generate-kubeconfigs.sh](generate-kubeconfigs.sh)) — по истечении просто
+перезапустите скрипт, он идемпотентен (`kubectl apply` на уже существующий
+RBAC ничего не сломает).
+
 ## Удаление
 
 ```bash
 kubectl delete -f service.yaml
 kubectl delete -f deployment.yaml
+kubectl delete -f rbac.yaml   # если генерировали read/write/admin kubeconfig
+rm -f kubeconfig-*.yaml
 # при необходимости полностью остановить кластер:
 minikube stop
 ```

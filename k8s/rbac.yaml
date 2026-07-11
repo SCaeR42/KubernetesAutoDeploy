@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: php-helloworld-read
+  namespace: default
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: php-helloworld-write
+  namespace: default
+---
+# read: только просмотр (get/list/watch) ресурсов приложения в namespace default
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: php-helloworld-read-role
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+# write: то же самое + создание/изменение/удаление и масштабирование Deployment,
+# но без доступа к RBAC-объектам, секретам, другим namespace и т.д.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: php-helloworld-write-role
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: php-helloworld-read-binding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: php-helloworld-read
+    namespace: default
+roleRef:
+  kind: Role
+  name: php-helloworld-read-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: php-helloworld-write-binding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: php-helloworld-write
+    namespace: default
+roleRef:
+  kind: Role
+  name: php-helloworld-write-role
+  apiGroup: rbac.authorization.k8s.io
