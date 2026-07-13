@@ -1,0 +1,56 @@
+name: Yandex Cloud infrastructure (manual)
+
+# Ручное создание/удаление облачной инфраструктуры (сеть, сервисный
+# аккаунт, registry, кластер, node-group) - обёртка над yc/create-infra.sh
+# и yc/destroy.sh. Запускается ТОЛЬКО вручную из вкладки Actions ->
+# "Run workflow", никогда не на push/PR: создание и особенно удаление
+# реальных платных облачных ресурсов должно быть осознанным решением
+# человека, а не побочным эффектом коммита.
+#
+# ВАЖНО: для этого workflow нужен ОТДЕЛЬНЫЙ, более привилегированный секрет,
+# чем YC_SA_JSON_CREDENTIALS из deploy.yml. Тот SA умеет только пушить
+# образы и читать kubeconfig - этого недостаточно, чтобы создавать сеть,
+# IAM-биндинги, registry и сам кластер. См. "Секреты для infra.yml" в
+# helm/README.md.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Что сделать с инфраструктурой'
+        required: true
+        type: choice
+        options:
+          - create
+          - destroy
+
+jobs:
+  infra:
+    name: ${{ inputs.action }} infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yc CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yc" -n
+          echo "$HOME/yc/bin" >> "$GITHUB_PATH"
+
+      - name: Authenticate yc CLI
+        run: |
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS_INFRA }}' > "$RUNNER_TEMP/sa-key.json"
+          yc config set service-account-key "$RUNNER_TEMP/sa-key.json"
+          yc config set cloud-id '${{ secrets.YC_CLOUD_ID }}'
+          yc config set folder-id '${{ secrets.YC_FOLDER_ID }}'
+
+      - name: Create infrastructure
+        if: inputs.action == 'create'
+        run: |
+          chmod +x yc/create-infra.sh
+          ./yc/create-infra.sh --yes
+
+      - name: Destroy infrastructure
+        if: inputs.action == 'destroy'
+        run: |
+          chmod +x yc/destroy.sh
+          ./yc/destroy.sh --yes

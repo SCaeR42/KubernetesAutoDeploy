@@ -1,0 +1,109 @@
+name: Build and deploy to Yandex Managed Kubernetes
+
+# Собирает образ, пушит в Yandex Container Registry и деплоит через Helm
+# в кластер yc/php-helloworld-cluster (см. ../../yc/README.md).
+#
+# Запускается ТОЛЬКО вручную (workflow_dispatch), не на каждый push -
+# сборка+деплой в реальный облачный кластер не должны происходить
+# автоматически на любой коммит без явного решения человека.
+#
+# Требуемые GitHub secrets (Settings -> Secrets and variables -> Actions):
+#   YC_SA_JSON_CREDENTIALS - ключ сервисного аккаунта (JSON), см. yc/README.md
+#   YC_CLOUD_ID             - id облака
+#   YC_FOLDER_ID             - id каталога
+#
+# Имена кластера/реестра не секретны и заданы ниже в env - должны совпадать
+# с YC_CLUSTER_NAME/YC_REGISTRY_NAME из yc/env.sh.
+#
+# Предполагает, что инфраструктура (кластер, реестр, SA) уже создана -
+# см. .github/workflows/infra.yml (запускается отдельно и тоже вручную).
+on:
+  workflow_dispatch: {}
+
+env:
+  CLUSTER_NAME: php-helloworld-cluster
+  REGISTRY_NAME: php-helloworld-registry
+  CHART_PATH: helm/php-helloworld
+  RELEASE_NAME: php-helloworld
+
+jobs:
+  lint:
+    name: Helm lint
+    uses: ./.github/workflows/helm-lint.yml
+
+  build-and-push:
+    name: Build & push image
+    needs: lint
+    runs-on: ubuntu-latest
+    outputs:
+      image_repo: ${{ steps.vars.outputs.image_repo }}
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yc CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yc" -n
+          echo "$HOME/yc/bin" >> "$GITHUB_PATH"
+
+      - name: Authenticate yc CLI
+        run: |
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > "$RUNNER_TEMP/sa-key.json"
+          yc config set service-account-key "$RUNNER_TEMP/sa-key.json"
+          yc config set cloud-id '${{ secrets.YC_CLOUD_ID }}'
+          yc config set folder-id '${{ secrets.YC_FOLDER_ID }}'
+
+      - name: Resolve registry id and image tag
+        id: vars
+        run: |
+          REGISTRY_ID="$(yc container registry get --name "$REGISTRY_NAME" --format json | jq -r .id)"
+          echo "image_repo=cr.yandex/${REGISTRY_ID}/php-helloworld" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure docker for cr.yandex
+        run: yc container registry configure-docker
+
+      - name: Build image
+        run: docker build -t "${{ steps.vars.outputs.image_repo }}:${{ steps.vars.outputs.image_tag }}" app/
+
+      - name: Push image
+        run: docker push "${{ steps.vars.outputs.image_repo }}:${{ steps.vars.outputs.image_tag }}"
+
+  deploy:
+    name: Helm upgrade --install
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.15.0'
+
+      - name: Install yc CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yc" -n
+          echo "$HOME/yc/bin" >> "$GITHUB_PATH"
+
+      - name: Authenticate yc CLI
+        run: |
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > "$RUNNER_TEMP/sa-key.json"
+          yc config set service-account-key "$RUNNER_TEMP/sa-key.json"
+          yc config set cloud-id '${{ secrets.YC_CLOUD_ID }}'
+          yc config set folder-id '${{ secrets.YC_FOLDER_ID }}'
+
+      - name: Get kubeconfig
+        run: yc managed-kubernetes cluster get-credentials "$CLUSTER_NAME" --external --force
+
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$RELEASE_NAME" "$CHART_PATH" \
+            --set image.repository=${{ needs.build-and-push.outputs.image_repo }} \
+            --set image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --wait --timeout 3m
+
+      - name: Show result
+        run: kubectl get pods,svc -l app.kubernetes.io/instance="$RELEASE_NAME"

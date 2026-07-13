@@ -1,0 +1,40 @@
+name: Helm lint
+
+# Проверка чарта на каждый PR и push - не требует облачных секретов,
+# работает и для PR из форков.
+on:
+  pull_request:
+    paths:
+      - 'helm/**'
+      - '.github/workflows/helm-lint.yml'
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'helm/**'
+      - '.github/workflows/helm-lint.yml'
+  workflow_dispatch: {}
+  workflow_call: {}   # позволяет переиспользовать этот workflow как job из deploy.yml
+
+jobs:
+  lint:
+    name: helm lint + template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.15.0'
+
+      - name: helm lint (--strict)
+        run: helm lint helm/php-helloworld --strict
+
+      - name: helm template (render check)
+        run: helm template ci-check helm/php-helloworld > /tmp/rendered.yaml
+
+      - name: Validate manifests against Kubernetes schema (kubeconform, без кластера)
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          ./kubeconform -strict -summary /tmp/rendered.yaml

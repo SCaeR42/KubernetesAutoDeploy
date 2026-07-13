@@ -1,0 +1,31 @@
+# Значения по умолчанию рассчитаны на Yandex Managed Service for Kubernetes
+# (см. ../../yc/README.md). Для другого кластера переопределите через
+# --set/-f при helm install/upgrade.
+
+replicaCount: 3
+
+image:
+  # Подставьте реальный registry-id после создания реестра (yc/create-infra.sh)
+  # или переопределите флагом --set image.repository=... в пайплайне.
+  repository: cr.yandex/REGISTRY_ID/php-helloworld
+  tag: latest
+  pullPolicy: Always
+
+service:
+  # LoadBalancer - на Yandex Managed K8s создаёт настоящий внешний балансировщик.
+  # Для локального minikube используйте --set service.type=NodePort.
+  type: LoadBalancer
+  port: 80
+  targetPort: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Полностью повторяет env из ручных манифестов (Downward API) - здесь ничего
+# менять не нужно, но оставлено настраиваемым на случай доп. переменных.
+extraEnv: []

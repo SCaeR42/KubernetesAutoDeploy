@@ -10,13 +10,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
+SKIP_CONFIRM=false
+for arg in "$@"; do
+    case "$arg" in
+        -y|--yes) SKIP_CONFIRM=true ;;
+        *) echo "Неизвестный флаг: $arg" >&2; exit 1 ;;
+    esac
+done
+
 echo "==> Текущий контекст yc:"
 yc config list
 
-read -r -p "Продолжить создание ресурсов в этом облаке/папке? [y/N] " confirm
-if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Отменено пользователем."
-    exit 1
+if [[ "$SKIP_CONFIRM" != true ]]; then
+    read -r -p "Продолжить создание ресурсов в этом облаке/папке? [y/N] " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "Отменено пользователем."
+        exit 1
+    fi
 fi
 
 echo "==> Создаю сеть..."
@@ -34,7 +44,7 @@ yc iam service-account create --name "$YC_SA_NAME" 2>/dev/null || echo "    Се
 
 FOLDER_ID="$(yc config get folder-id)"
 echo "==> Выдаю роли сервисному аккаунту (folder: $FOLDER_ID)..."
-for role in k8s.clusters.agent vpc.publicAdmin load-balancer.admin container-registry.images.puller monitoring.editor; do
+for role in k8s.clusters.agent vpc.publicAdmin load-balancer.admin container-registry.images.puller container-registry.images.pusher monitoring.editor; do
     yc resource-manager folder add-access-binding "$FOLDER_ID" \
         --role "$role" \
         --service-account-name "$YC_SA_NAME" >/dev/null
