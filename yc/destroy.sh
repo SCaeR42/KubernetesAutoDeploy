@@ -71,7 +71,7 @@ yc vpc network delete --name "$YC_NETWORK_NAME" 2>/dev/null || echo "    Уже 
 
 FOLDER_ID="$(yc config get folder-id)"
 echo "==> Отзываю роли и удаляю сервисный аккаунт..."
-for role in k8s.clusters.agent vpc.publicAdmin load-balancer.admin container-registry.images.puller container-registry.images.pusher monitoring.editor; do
+for role in k8s.clusters.agent k8s.editor vpc.publicAdmin load-balancer.admin container-registry.images.puller container-registry.images.pusher monitoring.editor; do
     yc resource-manager folder remove-access-binding "$FOLDER_ID" \
         --role "$role" \
         --service-account-name "$YC_SA_NAME" >/dev/null 2>&1 || true
