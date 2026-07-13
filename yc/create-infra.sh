@@ -51,12 +51,13 @@ yc iam service-account create --name "$YC_SA_NAME" 2>/dev/null || echo "    Се
 FOLDER_ID="$(yc config get folder-id)"
 echo "==> Выдаю роли сервисному аккаунту (folder: $FOLDER_ID)..."
 # k8s.clusters.agent даёт доступ к самому API управления кластером (получение
-# kubeconfig и т.п.), но НЕ даёт прав внутри кластера (Kubernetes RBAC) -
-# для этого нужна отдельная роль k8s.editor: Yandex Managed Kubernetes через
-# auth webhook транслирует её в права уровня ClusterRole "edit" (без чего
-# kubectl/helm получают "forbidden" на любые ресурсы, включая Secrets,
-# в которых Helm хранит состояние релизов).
-for role in k8s.clusters.agent k8s.editor vpc.publicAdmin load-balancer.admin container-registry.images.puller container-registry.images.pusher monitoring.editor; do
+# kubeconfig и т.п.), а k8s.editor (без cluster-api) - это тоже API управления
+# кластером/node-group, а НЕ права внутри Kubernetes. Права уровня Kubernetes
+# RBAC даёт отдельная роль k8s.cluster-api.editor - она транслируется в
+# группу yc:editor -> ClusterRole "edit" внутри кластера (без неё kubectl/helm
+# получают "forbidden" на любые ресурсы, включая Secrets, в которых Helm
+# хранит состояние релизов). См. https://yandex.cloud/en/docs/managed-kubernetes/security/
+for role in k8s.clusters.agent k8s.cluster-api.editor vpc.publicAdmin load-balancer.admin container-registry.images.puller container-registry.images.pusher monitoring.editor; do
     yc resource-manager folder add-access-binding "$FOLDER_ID" \
         --role "$role" \
         --service-account-name "$YC_SA_NAME" >/dev/null

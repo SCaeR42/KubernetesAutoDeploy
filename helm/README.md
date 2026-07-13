@@ -143,8 +143,15 @@ Actions → New repository secret**.
 ### 2. `YC_SA_JSON_CREDENTIALS` — для деплоя (узкие права)
 
 Тот же `php-helloworld-k8s-sa`, что создаёт `yc/create-infra.sh` — умеет
-только читать kubeconfig кластера и пушить/тянуть образы
-(`k8s.clusters.agent`, `container-registry.images.puller/pusher`).
+только читать kubeconfig кластера, пушить/тянуть образы и управлять
+ресурсами внутри namespace `default` (`k8s.clusters.agent`,
+`k8s.cluster-api.editor`, `container-registry.images.puller/pusher`).
+Роль `k8s.cluster-api.editor` — именно та, что даёт Kubernetes RBAC
+уровня `edit` (group `yc:editor`) внутри кластера; без неё `helm
+upgrade` падает с `forbidden: cannot list secrets` (Helm хранит
+состояние релизов как Secret) — это не то же самое, что похожая по
+названию роль `k8s.editor` (та лишь про управление самим кластером/
+node-group через yc API, а не про права внутри Kubernetes).
 Именно этим ключом пользуется `deploy.yml` при обычном деплое — сознательно
 низкие привилегии, чтобы утечка этого секрета не давала прав что-либо
 создавать/удалять в облаке.
