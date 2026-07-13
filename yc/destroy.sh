@@ -5,7 +5,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
+if [[ -f "$SCRIPT_DIR/env.sh" ]]; then
+    source "$SCRIPT_DIR/env.sh"
+else
+    # env.sh в .gitignore (локальный файл) - в CI его нет, используем
+    # закоммиченный env.sh.example с теми же (не секретными) значениями.
+    source "$SCRIPT_DIR/env.sh.example"
+fi
 
 SKIP_CONFIRM=false
 for arg in "$@"; do

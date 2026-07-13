@@ -4,7 +4,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
+if [[ -f "$SCRIPT_DIR/env.sh" ]]; then
+    source "$SCRIPT_DIR/env.sh"
+else
+    source "$SCRIPT_DIR/env.sh.example"
+fi
 
 if [[ ! -f "$SCRIPT_DIR/.last_image" ]]; then
     echo "Не найден yc/.last_image. Сначала выполните ./build-and-push.sh" >&2

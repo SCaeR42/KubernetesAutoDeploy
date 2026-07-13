@@ -3,7 +3,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
+if [[ -f "$SCRIPT_DIR/env.sh" ]]; then
+    source "$SCRIPT_DIR/env.sh"
+else
+    source "$SCRIPT_DIR/env.sh.example"
+fi
 KUBECONFIG_FILE="$SCRIPT_DIR/kubeconfig"
 
 if [[ ! -f "$KUBECONFIG_FILE" ]]; then

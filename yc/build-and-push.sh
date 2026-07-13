@@ -3,7 +3,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
+if [[ -f "$SCRIPT_DIR/env.sh" ]]; then
+    source "$SCRIPT_DIR/env.sh"
+else
+    source "$SCRIPT_DIR/env.sh.example"
+fi
 APP_DIR="$SCRIPT_DIR/../app"
 
 REGISTRY_ID="$(yc container registry get --name "$YC_REGISTRY_NAME" --format json | grep -o '"id": *"[^"]*"' | head -1 | cut -d'"' -f4)"

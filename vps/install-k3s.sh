@@ -5,7 +5,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
+if [[ -f "$SCRIPT_DIR/env.sh" ]]; then
+    source "$SCRIPT_DIR/env.sh"
+else
+    source "$SCRIPT_DIR/env.sh.example"
+fi
 
 if [[ -z "$VPS_HOST" ]]; then
     echo "Заполните VPS_HOST в env.sh перед запуском." >&2
