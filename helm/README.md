@@ -134,6 +134,12 @@ Actions → New repository secret**.
 в самих workflow-файлах и должны совпадать со значениями в
 [yc/env.sh](../yc/env.sh). Если ресурсы не переименовывали — трогать не нужно.
 
+> `yc/env.sh` в `.gitignore` (это локальный файл), поэтому в свежем
+> checkout на раннере GitHub Actions его нет. Все скрипты в `yc/` и `vps/`
+> при отсутствии `env.sh` сами подставляют закоммиченный
+> [env.sh.example](../yc/env.sh.example) с теми же (не секретными)
+> значениями — никаких дополнительных действий не требуется.
+
 ### 2. `YC_SA_JSON_CREDENTIALS` — для деплоя (узкие права)
 
 Тот же `php-helloworld-k8s-sa`, что создаёт `yc/create-infra.sh` — умеет
